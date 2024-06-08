@@ -1,10 +1,19 @@
 <script lang="ts">
     import {DeterminePlant} from "../SupabaseUtils";
+    import Icon from '@iconify/svelte';
+    import Topbar from "./Topbar.svelte";
+    import {Loader} from '@svelteuidev/core';
+    import {CurrentPlantData, type PlantData} from "../State";
+    import Info from "./Info.svelte";
+
+    import ClickAudio from "../assets/Jingle.mp3";
 
     let video: HTMLMediaElement;
-    let videoWidth : number;
-    let videoHeight : number;
-    let _stream : MediaStream;
+    let videoWidth: number;
+    let videoHeight: number;
+    let _stream: MediaStream;
+
+    let loading = false;
 
     const constraints = {
         audio: false,
@@ -13,10 +22,20 @@
         },
     };
 
+    const clickAudio = new Audio(ClickAudio);
+
+    clickAudio.volume = 1;
+
     // handle if mediaDevices is not supported\
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error("getUserMedia is not supported by your browser");
     }
+
+    let _currentPlantInfo: PlantData | undefined;
+    CurrentPlantData.subscribe(value => {
+        _currentPlantInfo = value;
+    });
+
 
     navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
         const videoTracks = stream.getVideoTracks();
@@ -47,7 +66,7 @@
             }
         });
 
-    async function onShutter(){
+    async function onShutter() {
         // get snapshot of video
         const canvas = document.createElement('canvas');
         canvas.width = videoWidth;
@@ -58,35 +77,106 @@
         const data = canvas.toDataURL('image/png');
         // console.log(data);
 
-        // add canvas to document
-        document.body.appendChild(canvas);
+        // // add canvas to document
+        // document.body.appendChild(canvas);
+
+        loading = true;
 
         let result = await DeterminePlant(data);
 
-        // add result to document
-        const resultDiv = document.createElement('div');
-        resultDiv.innerText = result;
-        resultDiv.style.color = "black";
-        document.body.appendChild(resultDiv);
+        loading = false;
+
+        let plant = {
+            Name: result,
+            Description: "",
+            ImageUrl: data,
+        } as PlantData;
+
+        CurrentPlantData.set(plant);
+
+        clickAudio.play();
+
+        // // add result to document
+        // const resultDiv = document.createElement('div');
+        // resultDiv.innerText = result;
+        // resultDiv.style.color = "black";
+        // document.body.appendChild(resultDiv);
     }
 </script>
 
-<main class="main">
-    <video class="camera" bind:this={video} autoplay></video>
-    <div class="button" on:click={onShutter} />
-</main>
+<div class="wrapper">
+    {#if _currentPlantInfo}
+        <Info/>
+    {/if}
+
+    {#if loading}
+        <div class="loader">
+            <Loader/>
+        </div>
+    {/if}
+
+    <main class="main">
+
+        <Topbar/>
+
+        <div></div>
+
+        <div class="camera-wrapper">
+            <video class="camera" bind:this={video} autoplay></video>
+        </div>
+        <div class="button" on:click={onShutter}>
+            <Icon icon="akar-icons:camera" width="100" height="100" class="icon"/>
+        </div>
+    </main>
+</div>
 
 <style>
     .main {
+        width: 100dvw;
+        height: 100dvh;
+
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+
+        overflow: hidden;
+
+        padding-top: 20px;
+        padding-bottom: 20px;
+    }
+
+    .loader {
+        position: absolute;
+        top: 0;
+        left: 0;
         width: 100%;
         height: 100%;
 
         display: flex;
-        flex-direction: column;
         justify-content: center;
         align-items: center;
 
-        overflow: hidden;
+        background-color: rgba(0, 0, 0, 0.5);
+
+        z-index: 100;
+
+    }
+
+    :global(.icon) {
+        color: black;
+        width: 60%;
+        height: 60%;
+    }
+
+    .camera-wrapper {
+        padding: 20px;
+        margin: 10px;
+        background-color: white;
+
+        border-radius: 10px;
+
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     }
 
     .button {
@@ -94,10 +184,20 @@
         height: 100px;
 
         background-color: white;
+
+        border-radius: 50%;
+
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     }
 
     .camera {
         width: 100%;
         height: 100%;
+
+        border-radius: 10px;
     }
 </style>

@@ -2,8 +2,7 @@
 // https://deno.land/manual/getting_started/setup_your_environment
 // This enables autocomplete, go to definition, etc.
 
-const plantList = `
-African rice
+const plantList = `African rice
 African sheepbush
 African violet
 Alder
@@ -304,7 +303,7 @@ Goose tongue
 Gordaldo
 Grapefruit
 Grapevine
-Grass - Poaceae
+Grass
 Gray alder
 Gray birch
 Great ragweed
@@ -327,7 +326,7 @@ Heath-leaved honeysuckle
 Hedge plant
 Hellebore
 Hellebore (Helleborus orientalis)
-Hemlock - Tsuga
+Hemlock 
 Hemp
 Hemp dogbane
 Hen plant
@@ -392,7 +391,7 @@ Kousa dogwood
 Kudzu
 Kudzu (Pueraria montana)
 Kumarahou
-Lace Aloe - Aloe aristata
+Lace Aloe
 Lace fern
 Laceflower
 Lady's mantle
@@ -491,7 +490,7 @@ Pale corydalis
 Paper birch
 Parsley
 Parsnip
-Pawpaw - Asimina triloba
+Pawpaw 
 Pea
 Peach
 Peanut
@@ -686,7 +685,7 @@ Sweet rocket
 Sweetbay magnolia
 Swine thistle
 Swinies
-Swiss Cheese Plant - Monstera deliciosa
+Swiss Cheese Plant
 Sword ferns
 Sycamore
 Sycamore (American)
@@ -749,7 +748,7 @@ Voodoo lily
 Voodoo lily (Dracunculus vulgaris)
 Wall speedwell
 Walnut
-Water Fern - Azolla Filiculoides
+Water Fern
 Water ash
 Water birch
 Water fern
@@ -758,7 +757,7 @@ Waterlilly Star magnolia
 Wattle
 Way thistle
 Waybread
-Weed (Marijuana) — Cannabis Sativa, Cannabis Indica, Cannabis Ruderalis
+Weed (Marijuana)
 Weeping birch
 Western redbud
 Western redbud
@@ -832,12 +831,13 @@ Zedoary
 `
 
 import {GoogleGenerativeAI} from "npm:@google/generative-ai";
+import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 console.log("Hello from Functions!")
 
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 const GeminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
@@ -848,45 +848,125 @@ const model = genAI.getGenerativeModel({model: "gemini-1.5-flash"});
 
 // @ts-ignore
 Deno.serve(async (req: Request) => {
-  // This is needed if you're planning to invoke your function from a browser.
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+    // This is needed if you're planning to invoke your function from a browser.
+    if (req.method === 'OPTIONS') {
+        return new Response('ok', {headers: corsHeaders})
+    }
 
-  console.log("REQUEST: ", req);
+    console.log("REQUEST: ", req);
 
-  try {
-    let data = await req.json();
+    try {
+        let data = await req.json();
 
-    console.log("DATA: ", data);
+        console.log("DATA: ", data);
 
-    let imageBase64 = data.ImageBase64;
+        let imageBase64 = data.ImageBase64;
 
-    // strip all parts of the image data except the base64 string
-    imageBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+        // strip all parts of the image data except the base64 string
+        imageBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
-    const image = {
-      inlineData: {
-        data: imageBase64,
-        mimeType: "image/png",
-      },
-    };
+        const image = {
+            inlineData: {
+                data: imageBase64,
+                mimeType: "image/png",
+            },
+        };
 
-    const prompt = "What type of plant is in this image? Respond only with an item listed below or undefined; never respond with 'tree'. If it is unrecognizable state unrecognizable. Do not include a period at the end of your response." + plantList;
-    const result = await model.generateContent([prompt, image]);
+        const prompt = "What type of plant is in this image? Respond only with an item listed below or undefined; never respond with 'tree'. If it is unrecognizable state unrecognizable. Do not include a period at the end of your response. If the plant is not real or the image is a photo of a screen state unrecognizable" + plantList;
+        const result = await model.generateContent([prompt, image]);
 
-    console.log(result.response.text())
+        console.log(result.response.text())
 
-    return new Response(JSON.stringify({data: result.response.text()}), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    })
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
-    })
-  }
+        if (result == "unrecognizable") {
+            console.log("supressing");
+
+            return new Response(JSON.stringify({data: result.response.text()}), {
+                headers: {...corsHeaders, 'Content-Type': 'application/json'},
+                status: 200,
+            })
+        }
+
+        const supabaseClient = createClient(
+            // Supabase API URL - env var exported by default.
+            Deno.env.get('SUPABASE_URL') ?? '',
+            // Supabase API ANON KEY - env var exported by default.
+            Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+            // Create client with Auth context of the user that called the function.
+            // This way your row-level-security (RLS) policies are applied.
+            {
+                global: {
+                    headers: {Authorization: req.headers.get('Authorization')!},
+                },
+            }
+        )
+
+        console.log("SUPABASE CLIENT: ", supabaseClient);
+
+        const token = req.headers.get('Authorization').replace('Bearer ', '')
+
+        // Now we can get the session or user object
+        const {
+            data: {user},
+        } = await supabaseClient.auth.getUser(token)
+
+        // get already existing user data
+        let {data: _userData, error: plantsError} = await supabaseClient.from('Plants').select('data').eq('user_id', user?.id)
+
+        // if the user has no data, create a new object
+        if (!_userData) {
+            await supabaseClient.from('Plants').insert([
+                {
+                    user_id: user?.id,
+                    data: {plants: []},
+                },
+            ])
+
+            _userData = {plants: [], images: []}
+        }
+
+        if (_userData.plants == null) {
+            _userData.plants = []
+            _userData.images = []
+        }
+
+        // add plant to the user's data
+        _userData!.plants = [..._userData.plants, result.response.text()]
+
+        _userData!.images = [..._userData.images, imageBase64]
+
+
+        let id = user?.id;
+
+        if (!id) {
+            // gen random id
+            id = Math.random() * 1000000000000000000;
+
+            // force int
+            id = Math.floor(id);
+        }
+
+        console.log("USER DATA: ", _userData);
+        console.log("USER ID: ", id);
+
+        // write the plant to the database
+        const {_data, error} = await supabaseClient.from('Plants').insert([
+            {
+                user_id: id,
+                data: _userData,
+            },
+        ])
+
+
+        return new Response(JSON.stringify({data: result.response.text()}), {
+            headers: {...corsHeaders, 'Content-Type': 'application/json'},
+            status: 200,
+        })
+    } catch (error) {
+        return new Response(JSON.stringify({error: error.message}), {
+            headers: {...corsHeaders, 'Content-Type': 'application/json'},
+            status: 400,
+        })
+    }
 })
 
 /* To invoke locally:
