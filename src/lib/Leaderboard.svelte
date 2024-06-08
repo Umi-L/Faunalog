@@ -1,18 +1,25 @@
 <script lang="ts">
-    import {CurrentPlantData, type PlantData} from "../State";
+    import {
+        AppState,
+        CurrentPlantData,
+        CurrentState,
+        Leaderboard,
+        type LeaderboardData,
+        type PlantData
+    } from "../State";
     import {Button} from "@svelteuidev/core";
     import {onMount} from "svelte";
     import {GetPlantSummary} from "../SupabaseUtils";
 
-    let _currentPlantData: PlantData;
-    CurrentPlantData.subscribe(value => {
-        _currentPlantData = value!;
+    let _currentLeaderboard: LeaderboardData;
+    Leaderboard.subscribe(value => {
+        _currentLeaderboard = value!;
     });
 
     let info : string = "Loading fact...";
 
     onMount(() => {
-        GetPlantSummary(_currentPlantData.Name).then(value => {
+        GetPlantSummary(_currentLeaderboard.Name).then(value => {
             info = value;
         });
     });
@@ -22,14 +29,12 @@
 <div class="wrapper">
     <div class="main">
 
-        <h1>{_currentPlantData.Name}</h1>
-        <p>{_currentPlantData.Description}</p>
+        <h1>{_currentLeaderboard.Name + " Leaderboard"}</h1>
+        <p>1. Julian: {_currentLeaderboard.TopCount}</p>
 
         <p>{info}</p>
 
-        <img class="image" src={_currentPlantData.ImageUrl} alt={_currentPlantData.Name} />
-
-        <Button on:click={() => CurrentPlantData.set(undefined)} color="#8da290">Close</Button>
+        <Button color="#8da290" on:click={()=>{CurrentState.set(AppState.Dex)}}>Close</Button>
     </div>
 </div>
 
@@ -43,7 +48,7 @@
         height: 100dvh;
         width: 100dvw;
 
-        background-color: rgba(0, 0, 0, 0.5);
+        background-color: var(--text-color);
 
         position: absolute;
 

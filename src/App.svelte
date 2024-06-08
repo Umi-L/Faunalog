@@ -4,6 +4,7 @@
     import DexPage from "./lib/DexPage.svelte";
     import {onMount} from "svelte";
     import MainTheme from "./assets/MainTheme.mp3";
+    import Leaderboard from "./lib/Leaderboard.svelte";
 
     let _currentState: AppState;
     CurrentState.subscribe((state) => {
@@ -35,6 +36,8 @@
         <PhotoPage/>
     {:else if _currentState == AppState.Dex}
         <DexPage/>
+    {:else if _currentState == AppState.Leaderboard}
+        <Leaderboard/>
     {/if}
 </main>
 

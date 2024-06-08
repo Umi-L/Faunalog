@@ -1,10 +1,18 @@
 <script lang="ts">
+    import {AppState, CurrentState, Leaderboard, type LeaderboardData} from "../State";
+
     export let name: string;
     export let count: number;
+
+    function showLeaderboard(){
+        Leaderboard.set({Name: name, TopCount: count} as LeaderboardData)
+
+        CurrentState.set(AppState.Leaderboard)
+    }
 </script>
 
 
-<div class="cell">
+<div class="cell" on:click={showLeaderboard}>
     <h1>{name}</h1>
 
     <p>captures: {count ? count : 0}</p>
